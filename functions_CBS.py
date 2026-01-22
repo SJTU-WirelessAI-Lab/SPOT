@@ -44,10 +44,6 @@ def load_system_params(param_file: str):
 
 
 def build_subcarrier_frequencies(fc: float, f_scs: float, M: int) -> np.ndarray:
-    """
-    Build absolute subcarrier frequencies (Hz) for OFDM.
-    f_m = fc + f_scs * (m - (M-1)/2), m=0,...,M-1
-    """
     return fc + f_scs * (np.arange(M) - (M - 1) / 2.0)
 
 
@@ -66,7 +62,6 @@ def received_signal_argmax_idx(BW: float, H: np.ndarray, PS: np.ndarray, TTD: np
     noise_power = k_B * T_sys * BW * 1e3 / M
     noise_std = math.sqrt(noise_power / 2.0)
 
-    # Use relative frequency offset to avoid large absolute phase
     f0 = fm_list[0]
     fm_rel = (fm_list - f0).reshape(1, M, 1, 1)  # (1,M,1,1)
 
@@ -89,7 +84,7 @@ def received_signal_argmax_idx(BW: float, H: np.ndarray, PS: np.ndarray, TTD: np
 
 
 # =========================
-# Gao-style rainbow beam (baseline)
+# CBS rainbow beam (baseline)
 # =========================
 def beam_squint_trajectory(BW: float, M: int, f: np.ndarray, theta0: float, r0: float, thetac: float, rc: float):
     """
@@ -130,7 +125,7 @@ def generate_beamfocusing_vector_CBS(Nt: int, M: int, BW: float, d: float, f: np
     f0 = f[0]
     fM = f[M - 1]
 
-    # Per-antenna PS/TTD (derived from two-point constraints)
+    # Per-antenna PS/TTD
     for n in range(Nt):
         phi[n] = f0 / c * rr[n]
         t[n] = fM / BW / c * rrc[n] - phi[n] / BW
@@ -146,7 +141,7 @@ def rainbow_beam_batch_CBS(N_az: int, d: float, fm_list: np.ndarray,
                            phi_est_deg: np.ndarray, r_init: float,
                            delta_phi_deg: float, delta_r: float):
     """
-    Design a per-sample CBS rainbow beam family for distance search.
+    Per-sample CBS rainbow beam for distance search.
     """
     c = 3e8
     M = len(fm_list)
