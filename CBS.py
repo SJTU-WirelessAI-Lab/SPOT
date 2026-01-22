@@ -1,11 +1,9 @@
 import os
 import numpy as np
-
 import functions_CBS as fcbs
 
-
 # =========================
-# Paths (relative)
+# Paths
 # =========================
 CHANNEL_DIR = os.path.join(fcbs.BASE_DIR, "channels")
 USER_DIR = os.path.join(fcbs.BASE_DIR, "user_data")
@@ -83,9 +81,8 @@ def main():
     y_gt = y_gt.reshape(-1, 1)
 
     # -------------------------
-    # Step-1: CBS rainbow beam focusing vector (fixed)
+    # Step-1: CBS rainbow beam vector (fixed)
     # -------------------------
-    # NOTE: these are CBS control points; you can adjust as needed.
     TTD, PS, phi_traj_rad, r_traj = fcbs.generate_beamfocusing_vector_CBS(
         Nt=N_az, M=M, BW=BW, d=d, f=fm_list,
         r0=200.0, theta0=np.pi / 3,  # start control point
@@ -95,11 +92,10 @@ def main():
     # -------------------------
     # Step-2: Angle estimation from peak subcarrier index
     # -------------------------
-    max_val_db, max_idx, Y = fcbs.received_signal_argmax_idx(
+    _, max_idx, _ = fcbs.received_signal_argmax_idx(
         BW=BW, H=H, PS=PS, TTD=TTD, fm_list=fm_list
     )
 
-    # phi_traj_rad: length M, radians
     phi_est_deg = np.rad2deg(phi_traj_rad[max_idx]).reshape(-1, 1)
     phi_gt_deg = np.rad2deg(phi_gt)
 
@@ -129,10 +125,6 @@ def main():
 
     rmse_2d = np.sqrt(np.mean((x_est - x_gt) ** 2 + (y_est - y_gt) ** 2))
     print("[Test] 2D RMSE (m): {:.6f}".format(float(rmse_2d)))
-
-    # Optional diagnostics
-    e2d = np.sqrt((x_est - x_gt) ** 2 + (y_est - y_gt) ** 2).reshape(-1)
-    print("[Test] 2D error p95 (m): {:.6f}".format(percentile_err(e2d, 95)))
 
 
 if __name__ == "__main__":
