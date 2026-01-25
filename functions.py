@@ -153,8 +153,9 @@ def initial_rainbow_beam(N_az, N_el, d, fm_list, user_height, BS_height, phi_1, 
 # =========================
 def softmax_peak(mag_db):
     """Soft-argmax peak extraction for differentiable peak index/value."""
+    alpha = 10
     B, M = mag_db.shape
-    W = F.softmax(mag_db, dim=-1)            # (B, M)
+    W = F.softmax(alpha * mag_db, dim=-1)            # (B, M)
     val_soft = torch.sum(W * mag_db, dim=-1) # (B,)
     m_range = torch.arange(M, device=mag_db.device, dtype=mag_db.dtype).view(1, M)
     idx_soft = torch.sum(W * m_range, dim=-1)  # (B,)
@@ -193,3 +194,4 @@ def loss_fn(pos_est, phi_gt, r_gt, x_gt, y_gt, delta_height, K=1):
 
     total_loss = r_error
     return total_loss, x_rmse, y_rmse, r_error, phi_rmse, r_rmse
+
