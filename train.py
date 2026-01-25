@@ -369,8 +369,8 @@ def main():
         te, pos, phi_gt, r_gt = eval_full(model_bf, model_est, test_loader, fm_list, delta_height, device)
         print("[Test] loss={:.6f}, phi={:.4f}, r={:.4f}, dist={:.4f}".format(te["loss"], te["phi"], te["r"], te["dist"]))
 
-        if te["loss"] < best["test_loss"]:
-            best["test_loss"] = te["loss"]
+        if va["loss"] < best["val_loss"]:
+            best["val_loss"] = va["loss"]
 
             # save models
             bf_path = os.path.join(OUTPUT_DIR, "best_model_bf{}.pt".format(dis_tag))
@@ -395,7 +395,7 @@ def main():
 
             # save_scatter_and_cdf(dis_tag, r_true, r_est, phi_true, phi_est)
 
-    print("[Done] Best test loss:", best["test_loss"])
+    print("[Done] Best val loss:", best["val_loss"])
 
     # proactive cleanup
     cleanup(H_train, user_train, H_val, H_test)
@@ -403,3 +403,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
