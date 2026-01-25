@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 
 
 # =========================
-# Path helpers (relative)
+# Path
 # =========================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.join(SCRIPT_DIR, "ISAC_data")
@@ -153,9 +153,8 @@ def initial_rainbow_beam(N_az, N_el, d, fm_list, user_height, BS_height, phi_1, 
 # =========================
 def softmax_peak(mag_db):
     """Soft-argmax peak extraction for differentiable peak index/value."""
-    alpha = 10
     B, M = mag_db.shape
-    W = F.softmax(alpha * mag_db, dim=-1)            # (B, M)
+    W = F.softmax(mag_db, dim=-1)            # (B, M)
     val_soft = torch.sum(W * mag_db, dim=-1) # (B,)
     m_range = torch.arange(M, device=mag_db.device, dtype=mag_db.dtype).view(1, M)
     idx_soft = torch.sum(W * m_range, dim=-1)  # (B,)
@@ -169,6 +168,25 @@ def quantize(data, bit_width, scale, bias):
     q = torch.round(data / scale) + bias
     q = torch.clamp(q, q_min, q_max)
     return q
+
+
+def loss_rainet(pos_est, phi_gt, r_gt, x_gt, y_gt, delta_height, K):
+    B = pos_est.shape[0]
+    phi_gt = phi_gt.view(B, K)
+    r_gt = r_gt.view(B, K)
+    x_est = pos_est[:, :K]
+    y_est = pos_est[:, K:2 * K]
+
+    x_rmse = torch.sqrt(torch.mean((x_est - x_gt) ** 2))
+    y_rmse = torch.sqrt(torch.mean((y_est - y_gt) ** 2))
+    r_est = torch.sqrt(x_est ** 2 + y_est ** 2)  
+    phi_est = torch.rad2deg(torch.atan2(y_est, x_est)) 
+    phi_rmse = torch.sqrt(torch.mean((phi_est - phi_gt) ** 2))
+    r_rmse = torch.sqrt(torch.mean((r_est - r_gt) ** 2))
+    r_error = torch.sqrt(torch.mean((x_est - x_gt) ** 2 + (y_est - y_gt) ** 2))
+    # total_loss = x_rmse + y_rmse
+    total_loss = r_error
+    return total_loss, x_rmse, y_rmse, r_error, phi_rmse, r_rmse
 
 
 def loss_fn(pos_est, phi_gt, r_gt, x_gt, y_gt, delta_height, K=1):
@@ -194,4 +212,3 @@ def loss_fn(pos_est, phi_gt, r_gt, x_gt, y_gt, delta_height, K=1):
 
     total_loss = r_error
     return total_loss, x_rmse, y_rmse, r_error, phi_rmse, r_rmse
-
