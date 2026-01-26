@@ -25,7 +25,7 @@ All code comments, documentation, and printed messages are in English for intern
 | Category / Method | Filename | Main Function Description |
 |---|---|---|
 | Data generation | `channel_generation.py` | Generate **train/val/test** datasets. |
-| Proposed SPOT | `train.py` | End-to-end SPOT training: **Module 1** learnable PS/TTD beamformer + **Module 2** estimator. |
+| Proposed SPOT | `SPOT.py` | End-to-end SPOT training: **Module 1** learnable PS/TTD beamformer + **Module 2** estimator. |
 |  | `functions.py` | Shared core utilities: path management (`BASE_DIR`), system parameter loading, `ISACDataset`, received-signal simulation, differentiable peak picking, and localization losses/metrics. |
 | CBS baseline | `CBS.py` | Conventional near-field positioning baseline. |
 |  | `functions_CBS.py` | CBS-specific utilities. |
@@ -73,7 +73,7 @@ Train SPOT:
 - Module 2 (Estimator): small MLP mapping feedback (max_power, subcarrier_index) to (phi, r) (or scaled outputs used in your code)
 
 ```bash
-python train.py
+python SPOT.py
 ```
 
 **Main Parameter Descriptions:**
