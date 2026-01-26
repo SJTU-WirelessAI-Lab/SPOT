@@ -22,12 +22,17 @@ All code comments, documentation, and printed messages are in English for intern
 
 ## File Structure and Function Description
 
-| Filename | Main Function Description |
-|----------|---------------------------|
-| `channel_generation.py` | Generate **train/val/test** datasets: LoS wideband channels, user geometry labels, and system parameters. |
-| `functions.py` | Core utilities used by training: system param loading, dataset loader, received-signal simulator, differentiable peak picking, and 2D RMSE loss. |
-| `train.py` | End-to-end training script: learnable PS/TTD (Module 1) + FC estimator (Module 2), with validation/testing and best-model export. |
-| `README.md` | Project documentation. |
+| Category / Method | Filename | Main Function Description |
+|---|---|---|
+| Data generation | `channel_generation.py` | Generate **train/val/test** datasets. |
+| Proposed SPOT | `train.py` | End-to-end SPOT training: **Module 1** learnable PS/TTD beamformer + **Module 2** estimator. |
+|  | `functions.py` | Shared core utilities: path management (`BASE_DIR`), system parameter loading, `ISACDataset`, received-signal simulation, differentiable peak picking, and localization losses/metrics. |
+| CBS baseline | `CBS.py` | Conventional near-field positioning baseline. |
+|  | `functions_CBS.py` | CBS-specific utilities. |
+| k-NN baseline | `KNN.py` | Fixed CBS rainbow beam and kNN regressor map per-subcarrier power features to `(phi, r)`. |
+| RaiNet baseline | `rainet.py` | Fixed CBS rainbow beam and **RaiNet** (1D CNN). |
+| Docs | `README.md` | Project documentation: setup, data generation, training, baselines, and expected directory layout. |
+
 
 ---
 
@@ -43,6 +48,7 @@ Recommended:
 ### 2. Data Generation
 Generate train/val/test wideband LoS channels, user geometry labels, and system parameters:
 
+(You may reduce the number of samples according to your storage constraints)
 ```bash
 
 python channel_generation.py
@@ -59,7 +65,7 @@ python channel_generation.py
 - `chunk_size`: Samples per channel chunk file (recommended to avoid huge single files)
 - Other parameters see script comments and command line help
 
-### 3. Deep Learning Model Training
+### 3. Train SPOT
 
 Train SPOT:
 - Module 1 (Beamformer): learnable PS/TTD (hardware-projected via modulo)
@@ -79,6 +85,30 @@ python train.py
 - Other parameters see script comments and command line help
 
 
+### 4. Baselines
+#### (1) CBS Baseline
+CBS provides a classical non-learning benchmark.
+```bash
+
+python CBS.py
+
+```
+
+#### (2) k-NN Baseline
+kNN baseline uses fixed CBS rainbow beam for user positioning, then runs kNN regression to predict (phi, r).
+```bash
+
+python KNN.py
+
+```
+
+#### (3) RaiNet Baseline
+RaiNet baseline trains a CNN estimator to predict (x, y) from received power vector.
+```bash
+
+python rainet.py
+
+```
 ---
 
 ## Dependencies
