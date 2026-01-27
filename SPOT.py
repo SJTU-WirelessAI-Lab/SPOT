@@ -116,7 +116,7 @@ class RainbowBeamModel(nn.Module):
         self.TTD = nn.Parameter(torch.tensor(TTD_init, dtype=torch.float32), requires_grad=True)  # ns
 
     def forward(self, H, fm_list):
-        B, M, N = H.shape        
+        B, M, N = H.shape
         PS_exp = self.PS.expand(B, -1)
         TTD_exp = 1e-9 * self.TTD.expand(B, -1)
         Y = received_signal(self.BW, H, PS_exp, TTD_exp, fm_list)  # (B, M) complex
@@ -210,7 +210,7 @@ def train_one_epoch(model_bf, model_est, loader, fm_list, opt_bf, opt_est, delta
 
 
 @torch.no_grad()
-def eval_full(model_bf, model_est, loader, fm_list, delta_height, device):
+def eval_full(model_bf, model_est, loader, fm_list, delta_height, BW, f_scs, device):
     """Full-batch evaluation using hard argmax (as in your original val/test)."""
     model_bf.eval()
     model_est.eval()
@@ -226,8 +226,8 @@ def eval_full(model_bf, model_est, loader, fm_list, delta_height, device):
         y_gt = batch["y_gt"].to(device)
 
         mag_dbm, PS, TTD = model_bf(H, fm_list)
-        PS_limited = torch.remainder(PS, 2 * torch.pi)                
-        TTD_limited = torch.remainder(TTD, 1.0 / self.f_scs)  
+        PS_limited = torch.remainder(PS, 2 * torch.pi)
+        TTD_limited = torch.remainder(TTD, 1.0 / f_scs)
         Y = received_signal(BW, H, PS_limited, TTD_limited, fm_list)
         mag = torch.abs(Y) ** 2
         mag_dbm = 10 * torch.log10(mag + 1e-30) + 30.0
@@ -313,7 +313,7 @@ def main():
     dis_min, dis_max = 5, 300
     epochs = 100
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
     print("[Info] device:", device)
 
 
@@ -349,7 +349,7 @@ def main():
     opt_bf = optim.Adam(model_bf.parameters(), lr=1e-3)
     opt_est = optim.Adam(model_est.parameters(), lr=5e-3)
 
-    best = dict(test_loss=float("inf"))
+    best = dict(val_loss=float("inf"))
 
     dis_tag = "_{}to{}".format(dis_min, dis_max)
 
@@ -364,10 +364,10 @@ def main():
         )
         print(msg)
 
-        va, _, _, _ = eval_full(model_bf, model_est, val_loader, fm_list, delta_height, device)
+        va, _, _, _ = eval_full(model_bf, model_est, val_loader, fm_list, delta_height, BW, f_scs, device)
         print("[Val]  loss={:.6f}, phi={:.4f}, r={:.4f}, dist={:.4f}".format(va["loss"], va["phi"], va["r"], va["dist"]))
 
-        te, pos, phi_gt, r_gt = eval_full(model_bf, model_est, test_loader, fm_list, delta_height, device)
+        te, pos, phi_gt, r_gt = eval_full(model_bf, model_est, test_loader, fm_list, delta_height, BW, f_scs, device)
         print("[Test] loss={:.6f}, phi={:.4f}, r={:.4f}, dist={:.4f}".format(te["loss"], te["phi"], te["r"], te["dist"]))
 
         if va["loss"] < best["val_loss"]:
