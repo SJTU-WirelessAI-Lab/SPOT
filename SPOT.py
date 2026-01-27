@@ -116,17 +116,13 @@ class RainbowBeamModel(nn.Module):
         self.TTD = nn.Parameter(torch.tensor(TTD_init, dtype=torch.float32), requires_grad=True)  # ns
 
     def forward(self, H, fm_list):
-        B, M, N = H.shape
-        PS_limited = torch.remainder(self.PS, 2 * torch.pi)                # [0, 2pi)
-        TTD_limited = torch.remainder(1e-9 * self.TTD, 1.0 / self.f_scs)   # seconds, wrapped
-
-        PS_exp = PS_limited.expand(B, -1)
-        TTD_exp = TTD_limited.expand(B, -1)
-
+        B, M, N = H.shape        
+        PS_exp = self.PS.expand(B, -1)
+        TTD_exp = 1e-9 * self.TTD.expand(B, -1)
         Y = received_signal(self.BW, H, PS_exp, TTD_exp, fm_list)  # (B, M) complex
         mag = torch.abs(Y) ** 2
         mag_dbm = 10 * torch.log10(mag + 1e-30) + 30.0
-        mag_dbm = torch.maximum(mag_dbm, -80.0 * torch.ones_like(mag_dbm))
+        # mag_dbm = torch.maximum(mag_dbm, -80.0 * torch.ones_like(mag_dbm))
         return mag_dbm, PS_exp, TTD_exp
 
 
@@ -230,7 +226,12 @@ def eval_full(model_bf, model_est, loader, fm_list, delta_height, device):
         y_gt = batch["y_gt"].to(device)
 
         mag_dbm, PS, TTD = model_bf(H, fm_list)
-
+        PS_limited = torch.remainder(PS, 2 * torch.pi)                
+        TTD_limited = torch.remainder(TTD, 1.0 / self.f_scs)  
+        Y = received_signal(BW, H, PS_limited, TTD_limited, fm_list)
+        mag = torch.abs(Y) ** 2
+        mag_dbm = 10 * torch.log10(mag + 1e-30) + 30.0
+        # mag_dbm = torch.maximum(mag_dbm, -80.0 * torch.ones_like(mag_dbm))
         max_val, max_idx = torch.max(mag_dbm, dim=-1)
         max_idx = max_idx.reshape(-1, 1)
         max_val = max_val.reshape(-1, 1)
@@ -403,4 +404,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
