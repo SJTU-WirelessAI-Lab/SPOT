@@ -68,7 +68,7 @@ class ISACDataset(Dataset):
     def __getitem__(self, idx):
         # Keep complex for downstream physics-based operations
         return {
-            "H": torch.tensor(self.H[idx], dtype=torch.complex128),
+            "H": torch.tensor(self.H[idx], dtype=torch.complex64),
             "phi_gt": torch.tensor(np.rad2deg(self.phi[idx]), dtype=torch.float32),
             "theta_gt": torch.tensor(np.rad2deg(self.theta[idx]), dtype=torch.float32),
             "r_gt": torch.tensor(self.r[idx], dtype=torch.float32),
@@ -97,14 +97,14 @@ def received_signal(BW, H, PS, TTD, fm_list):
     TTD = TTD.reshape(num, 1, N, 1).to(device=device, dtype=torch.float64)
 
     H_H = torch.conj(H).unsqueeze(-2)  # (num, M, 1, N)
-    BF = torch.exp(1j * (PS - 2 * torch.pi * fm * TTD)).to(torch.complex128)  # (num, M, N, 1)
+    BF = torch.exp(1j * (PS - 2 * torch.pi * fm * TTD)).to(torch.complex64)  # (num, M, N, 1)
 
     Y = math.sqrt(1e4 / M) * (H_H @ BF) / math.sqrt(N)  # (num, M, 1, 1)
     Y = Y.squeeze()  # (num, M)
 
     noise_real = torch.randn(Y.shape, device=device) * noise_std
     noise_imag = torch.randn(Y.shape, device=device) * noise_std
-    noise = (noise_real + 1j * noise_imag).to(torch.complex128)
+    noise = (noise_real + 1j * noise_imag).to(torch.complex64)
 
     return (Y + noise).reshape(num, M)
 
@@ -180,8 +180,8 @@ def loss_rainet(pos_est, phi_gt, r_gt, x_gt, y_gt, delta_height, K):
 
     x_rmse = torch.sqrt(torch.mean((x_est - x_gt) ** 2))
     y_rmse = torch.sqrt(torch.mean((y_est - y_gt) ** 2))
-    r_est = torch.sqrt(x_est ** 2 + y_est ** 2)  
-    phi_est = torch.rad2deg(torch.atan2(y_est, x_est)) 
+    r_est = torch.sqrt(x_est ** 2 + y_est ** 2)
+    phi_est = torch.rad2deg(torch.atan2(y_est, x_est))
     phi_rmse = torch.sqrt(torch.mean((phi_est - phi_gt) ** 2))
     r_rmse = torch.sqrt(torch.mean((r_est - r_gt) ** 2))
     r_error = torch.sqrt(torch.mean((x_est - x_gt) ** 2 + (y_est - y_gt) ** 2))
