@@ -24,13 +24,19 @@ BANDWIDTH = F_SCS * M
 
 # Dataset sizes (samples, not users)
 SPLIT_SAMPLES = {
-    "train": 5000,
+    "train": 200,
     "val": 100,
     "test": 100,
 }
 
 # Train chunking (in samples). Each chunk writes one file for channels.
 TRAIN_CHUNK_SAMPLES = 10000
+
+# Cluster mode: concentrate users in a small region for debugging/validation
+CLUSTER_MODE = True
+CLUSTER_CENTER_DIS = 100.0   # center distance (m)
+CLUSTER_CENTER_ANGLE_DEG = 30.0  # center angle (deg)
+CLUSTER_RADIUS = 10.0        # radius (m)
 
 
 # =========================
@@ -50,7 +56,10 @@ def ensure_dir(path: str) -> None:
 
 def tag(split: str) -> str:
     """Build a consistent tag for file naming."""
-    return "{}{}_{:d}to{:d}".format(split, ARCH, DIS_MIN, DIS_MAX)
+    base = "{}{}_{:d}to{:d}".format(split, ARCH, DIS_MIN, DIS_MAX)
+    if CLUSTER_MODE:
+        base += "_cluster"
+    return base
 
 
 def compute_rayleigh_distance(fc, n_az, d):
@@ -69,6 +78,25 @@ def generate_user_positions(num_users: int, dis_min: float, dis_max: float,
                             bs_height: float, user_height: float,
                             phi_min_deg: float = -60.0, phi_max_deg: float = 60.0):
     """Generate random user positions in 2D (x,y) with fixed height difference."""
+    if CLUSTER_MODE:
+        center_x = CLUSTER_CENTER_DIS * np.cos(np.deg2rad(CLUSTER_CENTER_ANGLE_DEG))
+        center_y = CLUSTER_CENTER_DIS * np.sin(np.deg2rad(CLUSTER_CENTER_ANGLE_DEG))
+
+        r_off = CLUSTER_RADIUS * np.sqrt(np.random.rand(num_users))
+        theta_off = 2 * np.pi * np.random.rand(num_users)
+        dx = r_off * np.cos(theta_off)
+        dy = r_off * np.sin(theta_off)
+
+        x = center_x + dx
+        y = center_y + dy
+        z = np.full(num_users, user_height - bs_height)
+
+        phi = np.arctan2(y, x)
+        r2d = np.sqrt(x ** 2 + y ** 2)
+        theta = np.arctan2(r2d, (user_height - bs_height))
+        r_3d = np.sqrt(r2d ** 2 + (bs_height - user_height) ** 2)
+        return x, y, z, phi, theta, r_3d
+
     u = np.random.rand(num_users)
     v = np.random.rand(num_users)
 
@@ -245,6 +273,10 @@ def main():
     print("[Info] tmax(ns):", 1e9 / F_SCS)
     print("[Info] BW(Hz):", BANDWIDTH)
     print("[Info] N_az={}, N_el={}, K={}, M={}".format(N_AZ, N_EL, K, M))
+
+    if CLUSTER_MODE:
+        print("[Info] CLUSTER MODE: center=({:.0f}m, {:.0f}deg), radius={:.0f}m".format(
+            CLUSTER_CENTER_DIS, CLUSTER_CENTER_ANGLE_DEG, CLUSTER_RADIUS))
 
     save_params(fm_list, d)
 
