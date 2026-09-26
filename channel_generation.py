@@ -12,14 +12,14 @@ DIS_MAX = 300
 # System parameters
 BS_HEIGHT = 1.5
 USER_HEIGHT = 1.5
-N_AZ = 256
+N_AZ = 16
 N_EL = 1
 K = 1
 
 C = 3e8
 FC = 28e9
 F_SCS = 240e3
-M = 1584
+M = 64
 BANDWIDTH = F_SCS * M
 
 # Dataset sizes (samples, not users)
