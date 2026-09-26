@@ -128,8 +128,9 @@ class RainbowBeamModel(nn.Module):
 
 class Estimation(nn.Module):
     """A small MLP that maps peak (idx, power) -> coarse (phi, r)."""
-    def __init__(self):
+    def __init__(self, M):
         super().__init__()
+        self.M = M
         in_dim = 2
         h1, h2, h3 = 64, 128, 64
 
@@ -151,7 +152,9 @@ class Estimation(nn.Module):
         self.fc_r = nn.Linear(h3, 1)
 
     def forward(self, max_idx, max_val):
-        x = torch.cat([max_idx, max_val], dim=1).to(torch.float32)
+        idx_norm = max_idx / float(self.M)
+        val_norm = (max_val + 80.0) / 80.0
+        x = torch.cat([idx_norm, val_norm], dim=1).to(torch.float32)
         h = self.net(x)
         phi = self.fc_phi(h)
         r = self.fc_r(h)
@@ -161,7 +164,7 @@ class Estimation(nn.Module):
 # =========================
 # Train / Eval loops
 # =========================
-def train_one_epoch(model_bf, model_est, loader, fm_list, opt_bf, opt_est, delta_height, device):
+def train_one_epoch(model_bf, model_est, loader, fm_list, opt_ps, opt_ttd, opt_est, delta_height, device):
     """One epoch of joint training."""
     model_bf.train()
     model_est.train()
@@ -177,7 +180,8 @@ def train_one_epoch(model_bf, model_est, loader, fm_list, opt_bf, opt_est, delta
         x_gt = batch["x_gt"].to(device)
         y_gt = batch["y_gt"].to(device)
 
-        opt_bf.zero_grad()
+        opt_ps.zero_grad()
+        opt_ttd.zero_grad()
         opt_est.zero_grad()
 
         mag_dbm, PS, TTD = model_bf(H, fm_list)
@@ -197,7 +201,8 @@ def train_one_epoch(model_bf, model_est, loader, fm_list, opt_bf, opt_est, delta
         grad_norms["PS"].append(float(model_bf.PS.grad.norm().item()))
         grad_norms["TTD"].append(float(model_bf.TTD.grad.norm().item()))
 
-        opt_bf.step()
+        opt_ps.step()
+        opt_ttd.step()
         opt_est.step()
 
         bs = H.shape[0]
@@ -395,7 +400,7 @@ def main():
     # experiment config
     arch = "_ULA"
     dis_min, dis_max = 5, 300
-    epochs = 100
+    epochs = 20
 
     # cluster mode (must match channel_generation.py settings)
     CLUSTER_MODE = True
@@ -451,9 +456,10 @@ def main():
     PS_init, TTD_init = initial_rainbow_beam(N_az, N_el, d, fm_list_np, user_height, BS_height, -60, 60)
 
     model_bf = RainbowBeamModel(BW, f_scs, N_az, N_el, PS_init, TTD_init).to(device)
-    model_est = Estimation().to(device)
+    model_est = Estimation(M).to(device)
 
-    opt_bf = optim.Adam(model_bf.parameters(), lr=1e-3)
+    opt_ps = optim.Adam([model_bf.PS], lr=1e-1)
+    opt_ttd = optim.Adam([model_bf.TTD], lr=1e-3)
     opt_est = optim.Adam(model_est.parameters(), lr=5e-3)
 
     best = dict(val_loss=float("inf"))
@@ -465,20 +471,20 @@ def main():
     grad_ps_history = []
     grad_ttd_history = []
 
-    # initial beam visualization
-    visualize_beam(
-        model_bf.PS.detach().cpu().numpy(),
-        model_bf.TTD.detach().cpu().numpy() * 1e-9,
-        fm_list_np, N_az, d,
-        user_x_train, user_y_train,
-        CLUSTER_CENTER_DIS, CLUSTER_CENTER_ANGLE_DEG, CLUSTER_RADIUS,
-        epoch=0, save_dir=FIG_DIR,
-    )
+    # initial beam visualization (skipped for speed)
+    # visualize_beam(
+    #     model_bf.PS.detach().cpu().numpy(),
+    #     model_bf.TTD.detach().cpu().numpy() * 1e-9,
+    #     fm_list_np, N_az, d,
+    #     user_x_train, user_y_train,
+    #     CLUSTER_CENTER_DIS, CLUSTER_CENTER_ANGLE_DEG, CLUSTER_RADIUS,
+    #     epoch=0, save_dir=FIG_DIR,
+    # )
 
     for ep in range(epochs):
         tr = train_one_epoch(
             model_bf, model_est, train_loader, fm_list,
-            opt_bf, opt_est, delta_height, device
+            opt_ps, opt_ttd, opt_est, delta_height, device
         )
 
         msg = "[Epoch {}/{}][Train] loss={:.6f}, phi={:.4f}, r={:.4f}, dist={:.4f}, |grad_PS|={:.6f}, |grad_TTD|={:.6f}".format(
@@ -500,16 +506,16 @@ def main():
         ps_history.append(model_bf.PS.detach().cpu().numpy().copy())
         ttd_history.append(model_bf.TTD.detach().cpu().numpy().copy())
 
-        # beam visualization every 10 epochs
-        if (ep + 1) % 10 == 0 or ep == 0:
-            visualize_beam(
-                model_bf.PS.detach().cpu().numpy(),
-                model_bf.TTD.detach().cpu().numpy() * 1e-9,
-                fm_list_np, N_az, d,
-                user_x_train, user_y_train,
-                CLUSTER_CENTER_DIS, CLUSTER_CENTER_ANGLE_DEG, CLUSTER_RADIUS,
-                epoch=ep + 1, save_dir=FIG_DIR,
-            )
+        # beam visualization (skipped for speed)
+        # if (ep + 1) % 10 == 0 or ep == 0:
+        #     visualize_beam(
+        #         model_bf.PS.detach().cpu().numpy(),
+        #         model_bf.TTD.detach().cpu().numpy() * 1e-9,
+        #         fm_list_np, N_az, d,
+        #         user_x_train, user_y_train,
+        #         CLUSTER_CENTER_DIS, CLUSTER_CENTER_ANGLE_DEG, CLUSTER_RADIUS,
+        #         epoch=ep + 1, save_dir=FIG_DIR,
+        #     )
 
         if va["loss"] < best["val_loss"]:
             best["val_loss"] = va["loss"]
@@ -528,59 +534,10 @@ def main():
 
     print("[Done] Best val loss:", best["val_loss"])
 
-    # plot PS/TTD evolution
-    ps_arr = np.array(ps_history)    # (epochs, N)
-    ttd_arr = np.array(ttd_history)  # (epochs, N)
-
-    fig, axes = plt.subplots(2, 1, figsize=(12, 8))
-    im0 = axes[0].imshow(ps_arr.T, aspect="auto", origin="lower", cmap="viridis")
-    axes[0].set_ylabel("Antenna index")
-    axes[0].set_title("PS evolution (rad)")
-    plt.colorbar(im0, ax=axes[0])
-    im1 = axes[1].imshow(ttd_arr.T, aspect="auto", origin="lower", cmap="viridis")
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("Antenna index")
-    axes[1].set_title("TTD evolution (ns)")
-    plt.colorbar(im1, ax=axes[1])
-    plt.tight_layout()
-    plt.savefig(os.path.join(FIG_DIR, "ps_ttd_evolution{}.png".format(dis_tag)), dpi=120)
-    plt.close()
-
-    # plot gradient norms
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-    ax1.semilogy(grad_ps_history, label="|grad PS|")
-    ax1.set_ylabel("Gradient norm")
-    ax1.set_title("PS gradient norm")
-    ax1.legend()
-    ax1.grid(True)
-    ax2.semilogy(grad_ttd_history, label="|grad TTD|", color="orange")
-    ax2.set_xlabel("Epoch")
-    ax2.set_ylabel("Gradient norm")
-    ax2.set_title("TTD gradient norm")
-    ax2.legend()
-    ax2.grid(True)
-    plt.tight_layout()
-    plt.savefig(os.path.join(FIG_DIR, "grad_norms{}.png".format(dis_tag)), dpi=120)
-    plt.close()
-
-    # plot PS/TTD before vs after
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6))
-    ax1.plot(ps_history[0].flatten(), label="Initial", alpha=0.8)
-    ax1.plot(ps_history[-1].flatten(), label="Final", alpha=0.8)
-    ax1.set_ylabel("PS (rad)")
-    ax1.set_title("PS: initial vs final")
-    ax1.legend()
-    ax1.grid(True)
-    ax2.plot(ttd_history[0].flatten(), label="Initial", alpha=0.8)
-    ax2.plot(ttd_history[-1].flatten(), label="Final", alpha=0.8)
-    ax2.set_ylabel("TTD (ns)")
-    ax2.set_xlabel("Antenna index")
-    ax2.set_title("TTD: initial vs final")
-    ax2.legend()
-    ax2.grid(True)
-    plt.tight_layout()
-    plt.savefig(os.path.join(FIG_DIR, "ps_ttd_before_after{}.png".format(dis_tag)), dpi=120)
-    plt.close()
+    # diagnostic plots (skipped for speed)
+    # ps_arr = np.array(ps_history)
+    # ttd_arr = np.array(ttd_history)
+    # ... (plotting code commented out)
 
     # proactive cleanup
     cleanup(H_train, user_train, H_val, H_test)
