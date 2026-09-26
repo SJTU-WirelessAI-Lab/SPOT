@@ -197,8 +197,8 @@ def loss_fn(pos_est, phi_gt, r_gt, x_gt, y_gt, delta_height, K=1):
     r_gt = r_gt.view(B, K)
 
     # Output convention preserved from your original code
-    phi_est = pos_est[:, :K] / 10.0
-    r3d_est = pos_est[:, K:2 * K] / 10.0
+    phi_est = pos_est[:, :K]
+    r3d_est = pos_est[:, K:2 * K]
     r2d_est = r3d_est
 
     angle = torch.deg2rad(phi_est)
